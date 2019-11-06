@@ -1,0 +1,131 @@
+import RPi.GPIO as GPIO
+from pad4pi import rpi_gpio
+import time
+import smtplib
+import picamera
+import random
+armed = 0  
+emailPerson = 'Your Email'
+GMAIL_USER = 'email used to send code' 
+GMAIL_PASS = 'password for email to send code'      
+SMTP_SERVER = 'smtp.gmail.com'
+SMTP_PORT = 587
+##Keypad Code
+KEYPAD = [
+        ["1","2","3","A"],
+        ["4","5","6","B"],
+        ["7","8","9","C"],
+        ["*","0","#","D"]
+]
+default = '0000'        #default pin
+counter = 0
+entry = ''                  #used to store keystrokes for primary entry
+secondaryK = ''        #used to store keystrokes for secondary
+new= ''                     #storage for secondary pin
+newS = ''                  #storage for string version of secondary
+ROW_PINS = [24, 14, 15, 17]  #BCM numbering
+COL_PINS = [18, 27, 22, 23] #BCM numbering
+
+factory = rpi_gpio.KeypadFactory()
+
+keypad = factory.create_keypad(keypad=KEYPAD, row_pins=ROW_PINS, col_pins=COL_PINS)
+#Entry of default pin to request secondary
+
+def primary(key):
+    global entry
+    global default
+    global counter
+    global armed
+    
+    entry += key
+    print(entry)
+    if (entry == '****'):
+        AngelChange(7.5)
+        armed = 1
+        default = '0000'
+        entry = ''
+        
+    elif(key == '#'):                           # '#' acts as a clear button
+        entry = ''
+        blink(5)
+    
+    elif (len(entry) == 4):
+        if(entry == default):
+            new =  random.randint(1001,9999)
+            newS = str(new)
+            if(counter == 0):
+                send_email(emailPerson, 'Secondary Code', newS)
+            
+            blink(2)
+            entry = ''
+            default = newS
+            counter = counter +1
+            if (counter == 2):
+                AngelChange(2.5)
+                armed = 0
+                entry = ''
+                counter = 0
+        else:
+            entry = ''
+            blink(5)
+keypad.registerKeyPressHandler(primary)
+ 
+### Function to be evoked when motion detected
+def camera():
+    with picamera.PiCamera() as camera:
+        camera.resolution = (720,480)
+        camera.capture("/home/pi/Desktop/newimage.jpg")
+
+#To be called while box is armed
+def motion():
+    global armed 
+    GPIO.setmode(GPIO.BCM)
+    GPIO.setup(20,GPIO.IN)
+    while (armed == 1):
+        input_state = GPIO.input(20)
+        if input_state == True:
+            camera()
+            send_email(emailPerson, 'Alert', 'Unauthorized Entry Detected. Please check on your belongings')
+            sleep(10)
+                
+            
+# send mail for reason
+def send_email(recipient, subject, text):
+    smtpserver = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
+    smtpserver.ehlo()
+    smtpserver.starttls()
+    smtpserver.ehlo
+    smtpserver.login(GMAIL_USER, GMAIL_PASS)
+    header = 'To:' + recipient + '\n' + 'From: ' + GMAIL_USER
+    header = header + '\n' + 'Subject:' + subject + '\n'
+    msg = header + '\n' + text + ' \n\n'
+    smtpserver.sendmail(GMAIL_USER, recipient, msg)
+    smtpserver.close()
+
+def AngelChange(motor):
+    servoPIN = 21
+    GPIO.setmode(GPIO.BCM)
+    GPIO.setup(servoPIN, GPIO.OUT)
+
+    p = GPIO.PWM(servoPIN, 50) # GPIO 17 for PWM with 50Hz
+    p.start(2.5) # Initialization
+
+    p.ChangeDutyCycle(motor)
+    time.sleep(.5)
+    p.stop()
+    
+     
+def blink(num):
+    GPIO.setmode(GPIO.BCM)
+    GPIO.setup(1, GPIO.OUT)
+    for x in range(num):
+        GPIO.output(1, True)
+        time.sleep(0.25)
+        GPIO.output(1, False)
+        time.sleep(0.5)
+
+
+AngelChange(7.5)  # 2.5 is off and 7.5 is on
+time.sleep(.5)
+AngelChange(2.5)
+blink(2)
