@@ -4,6 +4,7 @@ import time
 import smtplib
 import picamera
 import random
+
 armed = 0  
 emailPerson = 'Your Email'
 GMAIL_USER = 'email used to send code' 
@@ -65,7 +66,7 @@ def primary(key):
                 armed = 0
                 entry = ''
                 counter = 0
-        else:
+    else:
             entry = ''
             blink(5)
 keypad.registerKeyPressHandler(primary)
